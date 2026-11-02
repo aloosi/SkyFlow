@@ -1,0 +1,38 @@
+services:
+  # One-shot job: creates tables and seeds 300 flights (no-op if already seeded).
+  seed:
+    build: .
+    image: skyflow-api:latest
+    command: ["python", "scripts/seed_db.py"]
+    volumes:
+      - skyflow-data:/data
+    restart: "no"
+
+  api:
+    build: .
+    image: skyflow-api:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - skyflow-data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Optional live-traffic generator:  docker compose --profile simulator up
+  simulator:
+    image: skyflow-api:latest
+    profiles: ["simulator"]
+    command: ["python", "-m", "app.simulator.flight_simulator"]
+    environment:
+      SKYFLOW_API_URL: http://api:8000
+      SIM_MIN_INTERVAL: "15"
+      SIM_MAX_INTERVAL: "30"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  skyflow-data:
